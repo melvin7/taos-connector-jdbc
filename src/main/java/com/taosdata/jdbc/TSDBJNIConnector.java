@@ -1,6 +1,5 @@
 package com.taosdata.jdbc;
 
-import com.alibaba.fastjson.JSONObject;
 import com.taosdata.jdbc.enums.SchemalessProtocolType;
 import com.taosdata.jdbc.enums.SchemalessTimestampType;
 import com.taosdata.jdbc.utils.TaosInfo;
@@ -35,12 +34,14 @@ public class TSDBJNIConnector {
     public static void init(Properties props) throws SQLWarning {
         synchronized (LOCK) {
             if (!isInitialized) {
-
-                JSONObject configJSON = new JSONObject();
+                StringBuilder configBuilder = new StringBuilder();
+                configBuilder.append("{");
                 for (String key : props.stringPropertyNames()) {
-                    configJSON.put(key, props.getProperty(key));
+                    configBuilder.append("\"").append(key).append("\":\"").append(props.getProperty(key)).append("\",");
                 }
-                setConfigImp(configJSON.toJSONString());
+                configBuilder.deleteCharAt(configBuilder.length() - 1);
+                configBuilder.append("}");
+                setConfigImp(configBuilder.toString());
 
                 initImp(props.getProperty(TSDBDriver.PROPERTY_KEY_CONFIG_DIR, null));
 
