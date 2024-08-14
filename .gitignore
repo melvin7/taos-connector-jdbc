@@ -2,3 +2,7 @@
 target
 .vscode
 .DS_Store
+*.iml
+htmlReport/
+src/test/java/com/taosdata/jdbc/manual/
+src/test/resources/logback.xml

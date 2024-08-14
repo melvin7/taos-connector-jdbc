@@ -10,12 +10,15 @@ public enum ConsumerAction {
     // subscribe
     SUBSCRIBE("subscribe", SubscribeResp.class),
     POLL("poll", PollResp.class),
-    FETCH("fetch", FetchResp.class),
-    FETCH_BLOCK("fetch_block", FetchBlockResp.class),
+    FETCH_RAW_DATA("fetch_raw_data", FetchRawBlockResp.class),
     COMMIT("commit", CommitResp.class),
     ASSIGNMENT("assignment", AssignmentResp.class),
     SEEK("seek", SeekResp.class),
-    UNSUBSCRIBE("unsubscribe", UnsubscribeResp.class)
+    UNSUBSCRIBE("unsubscribe", UnsubscribeResp.class),
+    COMMIT_OFFSET("commit_offset", CommitOffsetResp.class),
+    COMMITTED("committed", CommittedResp.class),
+    POSITION("position", PositionResp.class),
+    LIST_TOPICS("list_topics", ListTopicsResp.class),
     ;
 
     private final String action;

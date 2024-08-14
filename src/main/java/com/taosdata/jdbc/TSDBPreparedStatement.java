@@ -149,22 +149,16 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x, int length) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setUnicodeStream(int parameterIndex, InputStream x, int length) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x, int length) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
@@ -186,7 +180,7 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public void setObject(int parameterIndex, Object x) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        if (parameterIndex < 1 && parameterIndex >= parameters.length)
+        if (parameterIndex < 1 || parameterIndex > parameters.length)
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE);
         parameters[parameterIndex - 1] = x;
     }
@@ -222,22 +216,16 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
     @Override
     public void setBlob(int parameterIndex, Blob x) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setClob(int parameterIndex, Clob x) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setArray(int parameterIndex, Array x) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
@@ -250,36 +238,26 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
     @Override
     public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setNull(int parameterIndex, int sqlType, String typeName) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setURL(int parameterIndex, URL x) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
@@ -293,8 +271,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
     @Override
     public void setRowId(int parameterIndex, RowId x) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
@@ -305,120 +281,86 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
     @Override
     public void setNCharacterStream(int parameterIndex, Reader value, long length) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setNClob(int parameterIndex, NClob value) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setClob(int parameterIndex, Reader reader, long length) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setBlob(int parameterIndex, InputStream inputStream, long length) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setNClob(int parameterIndex, Reader reader, long length) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setSQLXML(int parameterIndex, SQLXML xmlObject) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x, int targetSqlType, int scaleOrLength) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x, long length) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x, long length) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setCharacterStream(int parameterIndex, Reader reader, long length) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setCharacterStream(int parameterIndex, Reader reader) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setNCharacterStream(int parameterIndex, Reader value) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setClob(int parameterIndex, Reader reader) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setBlob(int parameterIndex, InputStream inputStream) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setNClob(int parameterIndex, Reader reader) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
@@ -577,6 +519,17 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
         }
     }
 
+    public void setTagVarbinary(int index, byte[] value) {
+        ensureTagCapacity(index);
+        this.tableTags.set(index, new TableTagInfo(value, TSDBConstants.TSDB_DATA_TYPE_VARBINARY));
+        this.tagValueLength += value.length;
+     }
+    public void setTagGeometry(int index, byte[] value) {
+        ensureTagCapacity(index);
+        this.tableTags.set(index, new TableTagInfo(value, TSDBConstants.TSDB_DATA_TYPE_GEOMETRY));
+        this.tagValueLength += value.length;
+    }
+
     public <T> void setValueImpl(int columnIndex, ArrayList<T> list, int type, int bytes) throws SQLException {
         ColumnInfo p = new ColumnInfo();
         p.setType(type);
@@ -622,6 +575,14 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
         setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_BINARY, size);
     }
 
+    public void setVarbinary(int columnIndex, ArrayList<byte[]> list, int size) throws SQLException {
+        setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_VARBINARY, size);
+    }
+
+    public void setGeometry(int columnIndex, ArrayList<byte[]> list, int size) throws SQLException {
+        setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_GEOMETRY, size);
+    }
+
     // note: expand the required space for each NChar character
     public void setNString(int columnIndex, ArrayList<String> list, int size) throws SQLException {
         setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_NCHAR, size * Integer.BYTES);
@@ -645,6 +606,10 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
         if ((this.tableTags == null || this.tableTags.size() == 0) && this.tableName != null) {
             connector.setBindTableName(this.nativeStmtHandle, this.tableName);
         } else if (this.tableTags != null && this.tableTags.size() > 0) {
+            if (tableName == null){
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "table name not set yet");
+            }
+
             int tagSize = this.tableTags.size();
             ByteBuffer tagDataList = ByteBuffer.allocate(this.tagValueLength);
             tagDataList.order(ByteOrder.LITTLE_ENDIAN);
@@ -727,6 +692,14 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
                         }
                         tagDataList.put(b);
                         lengthList.putInt(b.length);
+                        break;
+                    }
+
+                    case TSDBConstants.TSDB_DATA_TYPE_VARBINARY:
+                    case TSDBConstants.TSDB_DATA_TYPE_GEOMETRY: {
+                        byte[] val = (byte[]) tag.value;
+                        tagDataList.put(val);
+                        lengthList.putInt(val.length);
                         break;
                     }
                     case TSDBConstants.TSDB_DATA_TYPE_UTINYINT:
@@ -844,14 +817,13 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
                 }
 
                 case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
-                case TSDBConstants.TSDB_DATA_TYPE_BINARY: {
+                case TSDBConstants.TSDB_DATA_TYPE_BINARY:{
                     String charset = TaosGlobalConfig.getCharset();
                     for (int j = 0; j < rows; ++j) {
                         String val = (String) col1.data.get(j);
-
                         colDataList.position(j * col1.bytes);  // seek to the correct position
                         if (val != null) {
-                            byte[] b = null;
+                            byte[] b;
                             try {
                                 if (col1.type == TSDBConstants.TSDB_DATA_TYPE_BINARY) {
                                     b = val.getBytes();
@@ -868,6 +840,25 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
                             colDataList.put(b);
                             lengthList.putInt(b.length);
+                            isNullList.put((byte) 0);
+                        } else {
+                            lengthList.putInt(0);
+                            isNullList.put((byte) 1);
+                        }
+                    }
+                    break;
+                }
+                case TSDBConstants.TSDB_DATA_TYPE_VARBINARY:
+                case TSDBConstants.TSDB_DATA_TYPE_GEOMETRY: {
+                    for (int j = 0; j < rows; ++j) {
+                        byte[] val = (byte[]) col1.data.get(j);
+                        colDataList.position(j * col1.bytes);  // seek to the correct position
+                        if (val != null) {
+                            if (val.length > col1.bytes) {
+                                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "varbinary/geometry data too long");
+                            }
+                            colDataList.put(val);
+                            lengthList.putInt(val.length);
                             isNullList.put((byte) 0);
                         } else {
                             lengthList.putInt(0);

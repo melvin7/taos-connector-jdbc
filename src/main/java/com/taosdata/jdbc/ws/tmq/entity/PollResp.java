@@ -1,12 +1,11 @@
 package com.taosdata.jdbc.ws.tmq.entity;
 
 import com.alibaba.fastjson.annotation.JSONField;
+import com.taosdata.jdbc.utils.UInt64Codec;
+import com.taosdata.jdbc.ws.entity.CommonResp;
 import com.taosdata.jdbc.ws.entity.Response;
 
-public class PollResp extends Response {
-    private int code;
-    private String message;
-
+public class PollResp extends CommonResp {
     @JSONField(name = "have_message")
     private boolean haveMessage;
 
@@ -19,28 +18,12 @@ public class PollResp extends Response {
     @JSONField(name = "message_type")
     private int messageType;
 
-    @JSONField(name = "message_id")
+    @JSONField(name = "message_id", deserializeUsing = UInt64Codec.class)
     private long messageId;
 
     private long offset;
 
     private long timing;
-
-    public int getCode() {
-        return code;
-    }
-
-    public void setCode(int code) {
-        this.code = code;
-    }
-
-    public String getMessage() {
-        return message;
-    }
-
-    public void setMessage(String message) {
-        this.message = message;
-    }
 
     public boolean isHaveMessage() {
         return haveMessage;

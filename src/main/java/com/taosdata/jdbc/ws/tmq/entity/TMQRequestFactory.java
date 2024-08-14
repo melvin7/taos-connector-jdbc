@@ -1,5 +1,6 @@
 package com.taosdata.jdbc.ws.tmq.entity;
 
+import com.taosdata.jdbc.tmq.TopicPartition;
 import com.taosdata.jdbc.ws.entity.Request;
 import com.taosdata.jdbc.ws.tmq.ConsumerAction;
 
@@ -25,7 +26,7 @@ public class TMQRequestFactory {
 
     public Request generateSubscribe(String user, String password, String db, String groupId,
                                      String clientId, String offsetRest, String[] topics
-            , String enableAutoCommit, String autoCommitIntervalMs, String snapshotEnable, String withTableName) {
+            , String enableAutoCommit, String withTableName) {
         long reqId = this.getId(ConsumerAction.SUBSCRIBE.getAction());
 
         SubscribeReq subscribeReq = new SubscribeReq();
@@ -38,8 +39,6 @@ public class TMQRequestFactory {
         subscribeReq.setOffsetRest(offsetRest);
         subscribeReq.setTopics(topics);
         subscribeReq.setAutoCommit(enableAutoCommit);
-        subscribeReq.setAutoCommitIntervalMs(autoCommitIntervalMs);
-        subscribeReq.setSnapshotEnable(snapshotEnable);
         subscribeReq.setWithTableName(withTableName);
         return new Request(ConsumerAction.SUBSCRIBE.getAction(), subscribeReq);
     }
@@ -52,19 +51,12 @@ public class TMQRequestFactory {
         return new Request(ConsumerAction.POLL.getAction(), pollReq);
     }
 
-    public Request generateFetch(long messageId) {
-        long reqId = this.getId(ConsumerAction.FETCH.getAction());
-        FetchReq fetchReq = new FetchReq();
+    public Request generateFetchRaw(long messageId) {
+        long reqId = this.getId(ConsumerAction.FETCH_RAW_DATA.getAction());
+        FetchRawReq fetchReq = new FetchRawReq();
         fetchReq.setReqId(reqId);
         fetchReq.setMessageId(messageId);
-        return new Request(ConsumerAction.FETCH.getAction(), fetchReq);
-    }
-
-    public Request generateFetchBlock(long fetchRequestId, long messageId) {
-        FetchBlockReq fetchBlockReq = new FetchBlockReq();
-        fetchBlockReq.setReqId(fetchRequestId);
-        fetchBlockReq.setMessageId(messageId);
-        return new Request(ConsumerAction.FETCH_BLOCK.getAction(), fetchBlockReq);
+        return new Request(ConsumerAction.FETCH_RAW_DATA.getAction(), fetchReq);
     }
 
     public Request generateCommit(long messageId) {
@@ -98,5 +90,38 @@ public class TMQRequestFactory {
         UnsubscribeReq unsubscribeReq = new UnsubscribeReq();
         unsubscribeReq.setReqId(reqId);
         return new Request(ConsumerAction.UNSUBSCRIBE.getAction(), unsubscribeReq);
+    }
+
+    public Request generateCommitted(TopicPartition[] topicPartitions) {
+        long reqId = this.getId(ConsumerAction.COMMITTED.getAction());
+        CommittedReq committedReq = new CommittedReq();
+        committedReq.setReqId(reqId);
+        committedReq.setTopicPartitions(topicPartitions);
+        return new Request(ConsumerAction.COMMITTED.getAction(), committedReq);
+    }
+
+    public Request generatePosition(TopicPartition[] topicPartitions){
+        long reqId = this.getId(ConsumerAction.POSITION.getAction());
+        PositionReq positionReq = new PositionReq();
+        positionReq.setReqId(reqId);
+        positionReq.setTopicPartitions(topicPartitions);
+        return new Request(ConsumerAction.POSITION.getAction(), positionReq);
+    }
+
+    public Request generateSubscription(){
+        long reqId = this.getId(ConsumerAction.LIST_TOPICS.getAction());
+        ListTopicsReq listTopicsReq = new ListTopicsReq();
+        listTopicsReq.setReqId(reqId);
+        return new Request(ConsumerAction.LIST_TOPICS.getAction(), listTopicsReq);
+    }
+
+    public Request generateCommitOffset(TopicPartition topicPartition, long offset){
+        long reqId = this.getId(ConsumerAction.COMMIT_OFFSET.getAction());
+        CommitOffsetReq commitOffsetReq = new CommitOffsetReq();
+        commitOffsetReq.setReqId(reqId);
+        commitOffsetReq.setTopic(topicPartition.getTopic());
+        commitOffsetReq.setVgroupId(topicPartition.getVGroupId());
+        commitOffsetReq.setOffset(offset);
+        return new Request(ConsumerAction.COMMIT_OFFSET.getAction(), commitOffsetReq);
     }
 }

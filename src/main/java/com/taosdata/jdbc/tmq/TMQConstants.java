@@ -77,7 +77,6 @@ public class TMQConstants {
      * connect type websocket or jni, default is jni
      */
     public static final String CONNECT_TYPE = "td.connect.type";
-
     /**
      * Key used to retrieve the token value from the properties instance passed to
      * the driver.
@@ -117,7 +116,7 @@ public class TMQConstants {
      */
     public static final String CONNECT_MAX_REQUEST = HTTP_POOL_SIZE;
 
-    public static final String EXPERIMENTAL_SNAPSHOT_ENABLE = "experimental.snapshot.enable";
+    public static final int INVALID_OFFSET = -2147467247;
 
 
     static {
@@ -131,6 +130,5 @@ public class TMQConstants {
         configSet.add(CONNECT_USER);
         configSet.add(CONNECT_PASS);
         configSet.add(CONNECT_PORT);
-        configSet.add(EXPERIMENTAL_SNAPSHOT_ENABLE);
     }
 }

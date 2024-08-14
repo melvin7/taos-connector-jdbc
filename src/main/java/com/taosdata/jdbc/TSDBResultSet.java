@@ -19,10 +19,16 @@ import com.google.common.primitives.Longs;
 import com.google.common.primitives.Shorts;
 
 import java.math.BigDecimal;
-import java.sql.*;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
+import java.util.concurrent.*;
+
+import static com.taosdata.jdbc.TSDBConstants.JNI_SUCCESS;
 
 public class TSDBResultSet extends AbstractResultSet {
     private final TSDBJNIConnector jniConnector;
@@ -30,12 +36,14 @@ public class TSDBResultSet extends AbstractResultSet {
     private final long resultSetPointer;
     private List<ColumnMetaData> columnMetaDataList = new ArrayList<>();
     private final TSDBResultSetRowData rowData;
-    private final TSDBResultSetBlockData blockData;
-
+    private final int cacheSize = 5;
+    BlockingQueue<TSDBResultSetBlockData> blockingQueueOut = new LinkedBlockingQueue<>(cacheSize);
+    private TSDBResultSetBlockData blockData;
     private boolean batchFetch;
     private boolean lastWasNull;
-    private boolean isClosed;
-
+    private volatile boolean isClosed;
+    ThreadPoolExecutor backFetchExecutor;
+    ForkJoinPool dataHandleExecutor = ForkJoinPool.commonPool();
     public void setBatchFetch(boolean batchFetch) {
         this.batchFetch = batchFetch;
     }
@@ -52,7 +60,7 @@ public class TSDBResultSet extends AbstractResultSet {
         return rowData;
     }
 
-    public TSDBResultSet(TSDBStatement statement, TSDBJNIConnector connector, long resultSetPointer, int timestampPrecision) throws SQLException {
+    public TSDBResultSet(TSDBStatement statement, TSDBJNIConnector connector, long resultSetPointer, int timestampPrecision, boolean batchFetch) throws SQLException {
         this.statement = statement;
         this.jniConnector = connector;
         this.resultSetPointer = resultSetPointer;
@@ -68,8 +76,35 @@ public class TSDBResultSet extends AbstractResultSet {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_NUM_OF_FIELDS_0);
         }
         this.rowData = new TSDBResultSetRowData(this.columnMetaDataList.size());
-        this.blockData = new TSDBResultSetBlockData(this.columnMetaDataList, this.columnMetaDataList.size(), timestampPrecision);
         this.timestampPrecision = timestampPrecision;
+        this.blockData = new TSDBResultSetBlockData();
+        this.batchFetch = batchFetch;
+
+        if (batchFetch){
+            backFetchExecutor = (ThreadPoolExecutor)Executors.newFixedThreadPool(1);
+            backFetchExecutor.submit(() -> {
+                try {
+                    while (!isClosed){
+                        TSDBResultSetBlockData tsdbResultSetBlockData = new TSDBResultSetBlockData(this.columnMetaDataList, this.columnMetaDataList.size(), timestampPrecision);
+                        tsdbResultSetBlockData.returnCode = this.jniConnector.fetchBlock(this.resultSetPointer, tsdbResultSetBlockData);
+
+                        while (!blockingQueueOut.offer(tsdbResultSetBlockData, 10, TimeUnit.MILLISECONDS)) {
+                            if (isClosed) {
+                                return;
+                            }
+                        }
+                        if (tsdbResultSetBlockData.returnCode == JNI_SUCCESS) {
+                            dataHandleExecutor.submit(tsdbResultSetBlockData::doSetByteArray);
+                        } else {
+                            tsdbResultSetBlockData.doneWithNoData();
+                            break;
+                        }
+                    }
+                } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+        }
     }
 
     public boolean next() throws SQLException {
@@ -77,9 +112,14 @@ public class TSDBResultSet extends AbstractResultSet {
             if (this.blockData.forward())
                 return true;
 
-            int code = this.jniConnector.fetchBlock(this.resultSetPointer, this.blockData);
-            this.blockData.reset();
+            try {
+                this.blockData = blockingQueueOut.take();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            this.blockData.waitTillOK();
 
+            int code = this.blockData.returnCode;
             if (code == TSDBConstants.JNI_CONNECTION_NULL) {
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
             } else if (code == TSDBConstants.JNI_RESULT_SET_NULL) {
@@ -105,6 +145,21 @@ public class TSDBResultSet extends AbstractResultSet {
     public void close() throws SQLException {
         if (isClosed)
             return;
+        isClosed = true;
+
+        if (batchFetch){
+            // wait backFetchExecutor to finish
+            while (backFetchExecutor.getActiveCount() != 0) {
+                try {
+                    Thread.sleep(1);
+                } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            if (!backFetchExecutor.isShutdown()){
+                backFetchExecutor.shutdown();
+            }
+        }
         if (this.statement == null)
             return;
         if (this.jniConnector != null) {
@@ -115,7 +170,6 @@ public class TSDBResultSet extends AbstractResultSet {
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_RESULT_SET_NULL);
             }
         }
-        isClosed = true;
     }
 
     public boolean wasNull() throws SQLException {

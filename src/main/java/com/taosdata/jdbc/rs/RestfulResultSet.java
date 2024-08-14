@@ -137,6 +137,7 @@ public class RestfulResultSet extends AbstractResultSet {
             case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
                 return parseTimestampColumnData(row, colIndex);
             case TSDBConstants.TSDB_DATA_TYPE_BINARY:
+
                 int type = field.type;
                 if (Types.BINARY == type) {
                     return row.getString(colIndex) == null ? null : row.getString(colIndex).getBytes();
@@ -201,6 +202,7 @@ public class RestfulResultSet extends AbstractResultSet {
         public int getTaosType() {
             return taos_type;
         }
+        public String getName() {return name;}
     }
 
     @Override

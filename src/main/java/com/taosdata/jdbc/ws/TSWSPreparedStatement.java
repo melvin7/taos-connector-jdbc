@@ -11,12 +11,12 @@ import com.taosdata.jdbc.enums.TimestampPrecision;
 import com.taosdata.jdbc.rs.ConnectionParam;
 import com.taosdata.jdbc.utils.ReqId;
 import com.taosdata.jdbc.utils.Utils;
+import com.taosdata.jdbc.ws.entity.Action;
 import com.taosdata.jdbc.ws.entity.Code;
 import com.taosdata.jdbc.ws.entity.Request;
 import com.taosdata.jdbc.ws.entity.Response;
 import com.taosdata.jdbc.ws.stmt.entity.ExecResp;
 import com.taosdata.jdbc.ws.stmt.entity.RequestFactory;
-import com.taosdata.jdbc.ws.stmt.entity.STMTAction;
 import com.taosdata.jdbc.ws.stmt.entity.StmtResp;
 
 import java.io.IOException;
@@ -37,9 +37,10 @@ import static com.taosdata.jdbc.utils.SqlSyntaxValidator.getDatabaseName;
 import static com.taosdata.jdbc.utils.SqlSyntaxValidator.isUseSql;
 
 public class TSWSPreparedStatement extends WSStatement implements PreparedStatement {
-    private static final Pattern INSERT_PATTERN = Pattern.compile("insert\\s+into\\s+(\\w+|\\?)\\s+(using\\s+(\\w+)\\s+tags\\s*\\(.*\\))?\\s*values\\s*\\(.*\\)");
+   public static final Pattern INSERT_PATTERN = Pattern.compile(
+             "insert\\s+into\\s+([.\\w]+|\\?)\\s+(using\\s+([.\\w]+)(\\s*\\(.*\\)\\s*|\\s+)tags\\s*\\(.*\\))?\\s*(\\(.*\\))?\\s*values\\s*\\(.*\\)"
+   );
     private final ConnectionParam param;
-    private Transport prepareTransport;
     private long reqId;
     private long stmtId;
     private final String rawSql;
@@ -54,9 +55,8 @@ public class TSWSPreparedStatement extends WSStatement implements PreparedStatem
 
     private final PriorityQueue<ColumnInfo> queue = new PriorityQueue<>();
 
-    public TSWSPreparedStatement(Transport transport, Transport prepareTransport, ConnectionParam param, String database, Connection connection, String sql) throws SQLException {
+    public TSWSPreparedStatement(Transport transport, ConnectionParam param, String database, Connection connection, String sql) throws SQLException {
         super(transport, database, connection);
-        this.prepareTransport = prepareTransport;
         this.rawSql = sql;
         this.param = param;
         if (!sql.contains("?"))
@@ -93,15 +93,15 @@ public class TSWSPreparedStatement extends WSStatement implements PreparedStatem
 
         reqId = ReqId.getReqID();
         Request request = RequestFactory.generateInit(reqId);
-        StmtResp resp = (StmtResp) prepareTransport.send(request);
+        StmtResp resp = (StmtResp) transport.send(request);
         if (Code.SUCCESS.getCode() != resp.getCode()) {
-            throw new SQLException("0x" + Integer.toHexString(resp.getCode()) + ":" + resp.getMessage());
+            throw new SQLException("(0x" + Integer.toHexString(resp.getCode()) + "):" + resp.getMessage());
         }
         stmtId = resp.getStmtId();
         Request prepare = RequestFactory.generatePrepare(stmtId, reqId, sql);
-        StmtResp prepareResp = (StmtResp) prepareTransport.send(prepare);
+        StmtResp prepareResp = (StmtResp) transport.send(prepare);
         if (Code.SUCCESS.getCode() != prepareResp.getCode()) {
-            throw new SQLException("0x" + Integer.toHexString(prepareResp.getCode()) + ":" + prepareResp.getMessage());
+            throw new SQLException("(0x" + Integer.toHexString(prepareResp.getCode()) + "):" + prepareResp.getMessage());
         }
     }
 
@@ -118,7 +118,7 @@ public class TSWSPreparedStatement extends WSStatement implements PreparedStatem
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
 
         this.queryTimeout = seconds;
-        prepareTransport.setTimeout(seconds * 1000L);
+        transport.setTimeout(seconds * 1000L);
     }
 
     private void checkUseStatement(String sql) throws SQLException {
@@ -127,10 +127,9 @@ public class TSWSPreparedStatement extends WSStatement implements PreparedStatem
         }
 
         if (isUseSql(sql)) {
-            prepareTransport.shutdown();
             String database = getDatabaseName(sql);
             if (null != database) {
-                prepareTransport = WSConnection.initPrepareTransport(param, database);
+                WSConnection.reInitTransport(transport, param, database);
 
                 try (ResultSet resultSet = this.executeQuery("select `precision` from information_schema.ins_databases where name = '" + database + "'")) {
                     while (resultSet.next()) {
@@ -141,15 +140,15 @@ public class TSWSPreparedStatement extends WSStatement implements PreparedStatem
 
                 reqId = ReqId.getReqID();
                 Request request = RequestFactory.generateInit(reqId);
-                StmtResp resp = (StmtResp) prepareTransport.send(request);
+                StmtResp resp = (StmtResp) transport.send(request);
                 if (Code.SUCCESS.getCode() != resp.getCode()) {
-                    throw new SQLException("0x" + Integer.toHexString(resp.getCode()) + ":" + resp.getMessage());
+                    throw new SQLException("(0x" + Integer.toHexString(resp.getCode()) + "):" + resp.getMessage());
                 }
                 stmtId = resp.getStmtId();
                 Request prepare = RequestFactory.generatePrepare(stmtId, reqId, rawSql);
-                StmtResp prepareResp = (StmtResp) prepareTransport.send(prepare);
+                StmtResp prepareResp = (StmtResp) transport.send(prepare);
                 if (Code.SUCCESS.getCode() != prepareResp.getCode()) {
-                    throw new SQLException("0x" + Integer.toHexString(prepareResp.getCode()) + ":" + prepareResp.getMessage());
+                    throw new SQLException("(0x" + Integer.toHexString(prepareResp.getCode()) + "):" + prepareResp.getMessage());
                 }
             }
         }
@@ -202,10 +201,10 @@ public class TSWSPreparedStatement extends WSStatement implements PreparedStatem
             } catch (IOException e) {
                 throw new SQLException("data serialize error!", e);
             }
-            StmtResp bindResp = (StmtResp) prepareTransport.send(STMTAction.SET_TAGS.getAction(),
+            StmtResp bindResp = (StmtResp) transport.send(Action.SET_TAGS.getAction(),
                     reqId, stmtId, BindType.TAG.get(), tagBlock);
             if (Code.SUCCESS.getCode() != bindResp.getCode()) {
-                throw new SQLException("0x" + Integer.toHexString(bindResp.getCode()) + ":" + bindResp.getMessage());
+                throw new SQLException("(0x" + Integer.toHexString(bindResp.getCode()) + "):" + bindResp.getMessage());
             }
         }
         // bind
@@ -219,37 +218,37 @@ public class TSWSPreparedStatement extends WSStatement implements PreparedStatem
         } catch (IOException e) {
             throw new SQLException("data serialize error!", e);
         }
-        StmtResp bindResp = (StmtResp) prepareTransport.send(STMTAction.BIND.getAction(),
+        StmtResp bindResp = (StmtResp) transport.send(Action.BIND.getAction(),
                 reqId, stmtId, BindType.BIND.get(), rawBlock);
         if (Code.SUCCESS.getCode() != bindResp.getCode()) {
-            throw new SQLException("0x" + Integer.toHexString(bindResp.getCode()) + ":" + bindResp.getMessage());
+            throw new SQLException("(0x" + Integer.toHexString(bindResp.getCode()) + "):" + bindResp.getMessage());
         }
         // add batch
         Request batch = RequestFactory.generateBatch(stmtId, reqId);
-        Response send = prepareTransport.send(batch);
+        Response send = transport.send(batch);
         StmtResp batchResp = (StmtResp) send;
         if (Code.SUCCESS.getCode() != batchResp.getCode()) {
-            throw new SQLException("0x" + Integer.toHexString(batchResp.getCode()) + ":" + batchResp.getMessage());
+            throw new SQLException("(0x" + Integer.toHexString(batchResp.getCode()) + "):" + batchResp.getMessage());
         }
         this.clearParameters();
         // send
         Request request = RequestFactory.generateExec(stmtId, reqId);
-        ExecResp resp = (ExecResp) prepareTransport.send(request);
+        ExecResp resp = (ExecResp) transport.send(request);
         if (Code.SUCCESS.getCode() != resp.getCode()) {
-            throw new SQLException("0x" + Integer.toHexString(resp.getCode()) + ":" + resp.getMessage());
+            throw new SQLException("(0x" + Integer.toHexString(resp.getCode()) + "):" + resp.getMessage());
         }
         // close
         Request close = RequestFactory.generateClose(stmtId, reqId);
-        prepareTransport.sendWithoutRep(close);
+        transport.sendWithoutResponse(close);
         return resp.getAffected();
     }
 
     // set sub-table name
     public void setTableName(String name) throws SQLException {
         Request request = RequestFactory.generateSetTableName(stmtId, reqId, name);
-        StmtResp resp = (StmtResp) prepareTransport.send(request);
+        StmtResp resp = (StmtResp) transport.send(request);
         if (Code.SUCCESS.getCode() != resp.getCode()) {
-            throw new SQLException("0x" + Integer.toHexString(resp.getCode()) + ":" + resp.getMessage());
+            throw new SQLException("(0x" + Integer.toHexString(resp.getCode()) + "):" + resp.getMessage());
         }
     }
 
@@ -282,6 +281,9 @@ public class TSWSPreparedStatement extends WSStatement implements PreparedStatem
             case Types.BINARY:
             case Types.VARCHAR:
                 tag.put(index, new Column(null, TSDB_DATA_TYPE_BINARY, index));
+                break;
+            case Types.VARBINARY:
+                tag.put(index, new Column(null, TSDB_DATA_TYPE_VARBINARY, index));
                 break;
             case Types.NCHAR:
                 tag.put(index, new Column(null, TSDB_DATA_TYPE_NCHAR, index));
@@ -323,6 +325,12 @@ public class TSWSPreparedStatement extends WSStatement implements PreparedStatem
                 break;
             case TSDB_DATA_TYPE_BINARY:
                 tag.put(index, new Column(null, TSDB_DATA_TYPE_BINARY, index));
+                break;
+            case TSDB_DATA_TYPE_VARBINARY:
+                tag.put(index, new Column(null, TSDB_DATA_TYPE_VARBINARY, index));
+                break;
+            case TSDB_DATA_TYPE_GEOMETRY:
+                tag.put(index, new Column(null, TSDB_DATA_TYPE_GEOMETRY, index));
                 break;
             case TSDB_DATA_TYPE_NCHAR:
                 tag.put(index, new Column(null, TSDB_DATA_TYPE_NCHAR, index));
@@ -377,6 +385,13 @@ public class TSWSPreparedStatement extends WSStatement implements PreparedStatem
         tag.put(index, new Column(bytes, TSDB_DATA_TYPE_BINARY, index));
     }
 
+    public void setTagVarbinary(int index, byte[] value) {
+        tag.put(index, new Column(value, TSDB_DATA_TYPE_VARBINARY, index));
+    }
+    public void setTagGeometry(int index, byte[] value) {
+        tag.put(index, new Column(value, TSDB_DATA_TYPE_GEOMETRY, index));
+    }
+
     public void setTagNString(int index, String value) {
         tag.put(index, new Column(value, TSDB_DATA_TYPE_NCHAR, index));
     }
@@ -416,6 +431,9 @@ public class TSWSPreparedStatement extends WSStatement implements PreparedStatem
             case Types.BINARY:
             case Types.VARCHAR:
                 column.put(parameterIndex, new Column(null, TSDB_DATA_TYPE_BINARY, parameterIndex));
+                break;
+            case Types.VARBINARY:
+                column.put(parameterIndex, new Column(null, TSDB_DATA_TYPE_VARBINARY, parameterIndex));
                 break;
             case Types.NCHAR:
                 column.put(parameterIndex, new Column(null, TSDB_DATA_TYPE_NCHAR, parameterIndex));
@@ -485,6 +503,19 @@ public class TSWSPreparedStatement extends WSStatement implements PreparedStatem
         column.put(parameterIndex, new Column(x, TSDB_DATA_TYPE_BINARY, parameterIndex));
     }
 
+    public void setVarbinary(int parameterIndex, byte[] x) throws SQLException {
+        // UTF-8
+        if (x == null) {
+            setNull(parameterIndex, Types.VARBINARY);
+            return;
+        }
+        column.put(parameterIndex, new Column(x, TSDB_DATA_TYPE_VARBINARY, parameterIndex));
+    }
+
+    public void setGeometry(int parameterIndex, byte[] x) throws SQLException {
+        column.put(parameterIndex, new Column(x, TSDB_DATA_TYPE_GEOMETRY, parameterIndex));
+    }
+
     @Override
     public void setDate(int parameterIndex, Date x) throws SQLException {
         if (x == null) {
@@ -512,22 +543,16 @@ public class TSWSPreparedStatement extends WSStatement implements PreparedStatem
 
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x, int length) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setUnicodeStream(int parameterIndex, InputStream x, int length) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x, int length) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
@@ -568,6 +593,9 @@ public class TSWSPreparedStatement extends WSStatement implements PreparedStatem
             case Types.BINARY:
             case Types.VARCHAR:
                 column.put(parameterIndex, new Column(x, TSDB_DATA_TYPE_BINARY, parameterIndex));
+                break;
+            case Types.VARBINARY:
+                column.put(parameterIndex, new Column(x, TSDB_DATA_TYPE_VARBINARY, parameterIndex));
                 break;
             case Types.NCHAR:
                 column.put(parameterIndex, new Column(x, TSDB_DATA_TYPE_NCHAR, parameterIndex));
@@ -657,10 +685,10 @@ public class TSWSPreparedStatement extends WSStatement implements PreparedStatem
             } catch (IOException e) {
                 throw new SQLException("data serialize error!", e);
             }
-            StmtResp bindResp = (StmtResp) prepareTransport.send(STMTAction.SET_TAGS.getAction(),
+            StmtResp bindResp = (StmtResp) transport.send(Action.SET_TAGS.getAction(),
                     reqId, stmtId, BindType.TAG.get(), tagBlock);
             if (Code.SUCCESS.getCode() != bindResp.getCode()) {
-                throw new SQLException("0x" + Integer.toHexString(bindResp.getCode()) + ":" + bindResp.getMessage());
+                throw new SQLException("(0x" + Integer.toHexString(bindResp.getCode()) + "):" + bindResp.getMessage());
             }
         }
         // bind
@@ -670,25 +698,25 @@ public class TSWSPreparedStatement extends WSStatement implements PreparedStatem
         } catch (IOException e) {
             throw new SQLException("data serialize error!", e);
         }
-        StmtResp bindResp = (StmtResp) prepareTransport.send(STMTAction.BIND.getAction(),
+        StmtResp bindResp = (StmtResp) transport.send(Action.BIND.getAction(),
                 reqId, stmtId, BindType.BIND.get(), rawBlock);
         if (Code.SUCCESS.getCode() != bindResp.getCode()) {
-            throw new SQLException("0x" + Integer.toHexString(bindResp.getCode()) + ":" + bindResp.getMessage());
+            throw new SQLException("(0x" + Integer.toHexString(bindResp.getCode()) + "):" + bindResp.getMessage());
         }
         // add batch
         Request batch = RequestFactory.generateBatch(stmtId, reqId);
-        Response send = prepareTransport.send(batch);
+        Response send = transport.send(batch);
         StmtResp batchResp = (StmtResp) send;
         if (Code.SUCCESS.getCode() != batchResp.getCode()) {
-            throw new SQLException("0x" + Integer.toHexString(batchResp.getCode()) + ":" + batchResp.getMessage());
+            throw new SQLException("(0x" + Integer.toHexString(batchResp.getCode()) + "):" + batchResp.getMessage());
         }
 
         this.clearParameters();
         // send
         Request request = RequestFactory.generateExec(stmtId, reqId);
-        ExecResp resp = (ExecResp) prepareTransport.send(request);
+        ExecResp resp = (ExecResp) transport.send(request);
         if (Code.SUCCESS.getCode() != resp.getCode()) {
-            throw new SQLException("0x" + Integer.toHexString(resp.getCode()) + ":" + resp.getMessage());
+            throw new SQLException("(0x" + Integer.toHexString(resp.getCode()) + "):" + resp.getMessage());
         }
         int[] ints = new int[resp.getAffected()];
         for (int i = 0, len = ints.length; i < len; i++)
@@ -700,7 +728,7 @@ public class TSWSPreparedStatement extends WSStatement implements PreparedStatem
     public void close() throws SQLException {
         super.close();
         Request close = RequestFactory.generateClose(stmtId, reqId);
-        prepareTransport.sendWithoutRep(close);
+        transport.sendWithoutResponse(close);
     }
 
     @Override
@@ -732,8 +760,6 @@ public class TSWSPreparedStatement extends WSStatement implements PreparedStatem
 
     @Override
     public void setCharacterStream(int parameterIndex, Reader reader, int length) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
@@ -748,65 +774,47 @@ public class TSWSPreparedStatement extends WSStatement implements PreparedStatem
 
     @Override
     public void setBlob(int parameterIndex, Blob x) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setClob(int parameterIndex, Clob x) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setArray(int parameterIndex, Array x) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
 
     }
 
     @Override
     public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setNull(int parameterIndex, int sqlType, String typeName) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setURL(int parameterIndex, URL x) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setRowId(int parameterIndex, RowId x) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
@@ -817,120 +825,86 @@ public class TSWSPreparedStatement extends WSStatement implements PreparedStatem
 
     @Override
     public void setNCharacterStream(int parameterIndex, Reader value, long length) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setNClob(int parameterIndex, NClob value) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setClob(int parameterIndex, Reader reader, long length) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setBlob(int parameterIndex, InputStream inputStream, long length) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setNClob(int parameterIndex, Reader reader, long length) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setSQLXML(int parameterIndex, SQLXML xmlObject) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x, int targetSqlType, int scaleOrLength) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x, long length) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x, long length) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setCharacterStream(int parameterIndex, Reader reader, long length) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setCharacterStream(int parameterIndex, Reader reader) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setNCharacterStream(int parameterIndex, Reader value) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setClob(int parameterIndex, Reader reader) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setBlob(int parameterIndex, InputStream inputStream) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setNClob(int parameterIndex, Reader reader) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
@@ -995,6 +969,12 @@ public class TSWSPreparedStatement extends WSStatement implements PreparedStatem
         setValueImpl(columnIndex, collect, TSDBConstants.TSDB_DATA_TYPE_BINARY, size);
     }
 
+    public void setVarbinary(int columnIndex, List<byte[]> list, int size) throws SQLException {
+        setValueImpl(columnIndex, list, TSDB_DATA_TYPE_VARBINARY, size);
+    }
+    public void setGeometry(int columnIndex, List<byte[]> list, int size) throws SQLException {
+        setValueImpl(columnIndex, list, TSDB_DATA_TYPE_GEOMETRY, size);
+    }
     // note: expand the required space for each NChar character
     public void setNString(int columnIndex, List<String> list, int size) throws SQLException {
         setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_NCHAR, size * Integer.BYTES);
@@ -1027,10 +1007,10 @@ public class TSWSPreparedStatement extends WSStatement implements PreparedStatem
             } catch (IOException e) {
                 throw new SQLException("data serialize error!", e);
             }
-            StmtResp bindResp = (StmtResp) prepareTransport.send(STMTAction.SET_TAGS.getAction(),
+            StmtResp bindResp = (StmtResp) transport.send(Action.SET_TAGS.getAction(),
                     reqId, stmtId, BindType.TAG.get(), tagBlock);
             if (Code.SUCCESS.getCode() != bindResp.getCode()) {
-                throw new SQLException("0x" + Integer.toHexString(bindResp.getCode()) + ":" + bindResp.getMessage());
+                throw new SQLException("(0x" + Integer.toHexString(bindResp.getCode()) + "):" + bindResp.getMessage());
             }
         }
         // bind
@@ -1040,25 +1020,25 @@ public class TSWSPreparedStatement extends WSStatement implements PreparedStatem
         } catch (IOException e) {
             throw new SQLException("data serialize error!", e);
         }
-        StmtResp bindResp = (StmtResp) prepareTransport.send(STMTAction.BIND.getAction(),
+        StmtResp bindResp = (StmtResp) transport.send(Action.BIND.getAction(),
                 reqId, stmtId, BindType.BIND.get(), rawBlock);
         if (Code.SUCCESS.getCode() != bindResp.getCode()) {
-            throw new SQLException("0x" + Integer.toHexString(bindResp.getCode()) + ":" + bindResp.getMessage());
+            throw new SQLException("(0x" + Integer.toHexString(bindResp.getCode()) + "):" + bindResp.getMessage());
         }
         // add batch
         Request batch = RequestFactory.generateBatch(stmtId, reqId);
-        Response send = prepareTransport.send(batch);
+        Response send = transport.send(batch);
         StmtResp batchResp = (StmtResp) send;
         if (Code.SUCCESS.getCode() != batchResp.getCode()) {
-            throw new SQLException("0x" + Integer.toHexString(batchResp.getCode()) + ":" + batchResp.getMessage());
+            throw new SQLException("(0x" + Integer.toHexString(batchResp.getCode()) + "):" + batchResp.getMessage());
         }
 
         this.clearParameters();
         // send
         Request request = RequestFactory.generateExec(stmtId, reqId);
-        ExecResp resp = (ExecResp) prepareTransport.send(request);
+        ExecResp resp = (ExecResp) transport.send(request);
         if (Code.SUCCESS.getCode() != resp.getCode()) {
-            throw new SQLException("0x" + Integer.toHexString(resp.getCode()) + ":" + resp.getMessage());
+            throw new SQLException("(0x" + Integer.toHexString(resp.getCode()) + "):" + resp.getMessage());
         }
     }
 

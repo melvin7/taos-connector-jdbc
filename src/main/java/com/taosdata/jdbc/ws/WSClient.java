@@ -3,26 +3,39 @@ package com.taosdata.jdbc.ws;
 import com.google.common.base.Strings;
 import com.taosdata.jdbc.enums.WSFunction;
 import com.taosdata.jdbc.rs.ConnectionParam;
+import com.taosdata.jdbc.utils.ReqId;
+import com.taosdata.jdbc.utils.StringUtils;
+import com.taosdata.jdbc.ws.entity.*;
 import org.java_websocket.client.WebSocketClient;
+import org.java_websocket.drafts.Draft;
+import org.java_websocket.drafts.Draft_6455;
+import org.java_websocket.extensions.permessage_deflate.PerMessageDeflateExtension;
 import org.java_websocket.handshake.ServerHandshake;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.ByteBuffer;
 import java.sql.SQLException;
 import java.util.HashMap;
-import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 public class WSClient extends WebSocketClient implements AutoCloseable {
 
-    ThreadPoolExecutor executor;
+    private final Logger log = LoggerFactory.getLogger(WSClient.class);
 
+    private static final Draft perMessageDeflateDraft = new Draft_6455(
+            new PerMessageDeflateExtension());
+    ThreadPoolExecutor executor;
+    Transport transport;
     private Consumer<String> textMessageHandler;
     private Consumer<ByteBuffer> binaryMessageHandler;
 
+    public final String serverUri;
     public void setTextMessageHandler(Consumer<String> textMessageHandler) {
         this.textMessageHandler = textMessageHandler;
     }
@@ -36,11 +49,13 @@ public class WSClient extends WebSocketClient implements AutoCloseable {
      *
      * @param serverUri connection url
      */
-    public WSClient(URI serverUri) {
-        super(serverUri, new HashMap<>());
+    public WSClient(URI serverUri, Transport transport, ConnectionParam connectionParam, WSFunction function) {
+        super(serverUri, connectionParam.isEnableCompression() ? perMessageDeflateDraft : new Draft_6455(), new HashMap<>());
+        this.transport = transport;
+        this.serverUri = serverUri.toString();
         executor = new ThreadPoolExecutor(1, 1,
                 0L, TimeUnit.MILLISECONDS,
-                new LinkedBlockingDeque<>(),
+                new LinkedBlockingQueue<>(),
                 r -> {
                     Thread t = new Thread(r);
                     t.setName("parse-message-" + t.getId());
@@ -63,16 +78,17 @@ public class WSClient extends WebSocketClient implements AutoCloseable {
 
     @Override
     public void onMessage(ByteBuffer bytes) {
-        binaryMessageHandler.accept(bytes);
+        executor.submit(() -> binaryMessageHandler.accept(bytes));
     }
 
     @Override
     @SuppressWarnings("all")
     public void onClose(int code, String reason, boolean remote) {
-        if (remote) {
-            throw new RuntimeException("The remote server closed the connection: " + reason);
-        } else {
-            throw new RuntimeException("close connection: " + reason);
+        // do nothing, wait next send to retry.
+        if (remote){
+            log.error("disconnect uri: {},  code : {} , reason: {}, remote: {}", serverUri, code, reason, remote);
+        }else{
+            log.debug("disconnect uri: {},  code : {} , reason: {}, remote: {}", serverUri, code, reason, remote);
         }
     }
 
@@ -81,13 +97,17 @@ public class WSClient extends WebSocketClient implements AutoCloseable {
         this.close();
     }
 
-    @Override
-    public void close() {
+    public void shutdown() {
         super.close();
-        executor.shutdown();
+        if (executor != null && !executor.isShutdown())
+            executor.shutdown();
     }
 
-    public static WSClient getInstance(ConnectionParam params, WSFunction function) throws SQLException {
+    public boolean reconnectBlockingWithoutRetry() throws InterruptedException {
+        return super.reconnectBlocking();
+    }
+
+    public static WSClient getInstance(ConnectionParam params, WSFunction function, Transport transport) throws SQLException {
         if (Strings.isNullOrEmpty(function.getFunction())) {
             throw new SQLException("websocket url error");
         }
@@ -100,7 +120,12 @@ public class WSClient extends WebSocketClient implements AutoCloseable {
             port = ":" + params.getPort();
         }
 
-        String loginUrl = protocol + "://" + params.getHost() + port + "/rest/" + function.getFunction();
+        String wsFunction = "/ws";
+        if (function.equals(WSFunction.TMQ)){
+            wsFunction = "/rest/tmq";
+        }
+        String loginUrl = protocol + "://" + params.getHost() + port + wsFunction;
+
         if (null != params.getCloudToken()) {
             loginUrl = loginUrl + "?token=" + params.getCloudToken();
         }
@@ -111,6 +136,36 @@ public class WSClient extends WebSocketClient implements AutoCloseable {
         } catch (URISyntaxException e) {
             throw new SQLException("Websocket url parse error: " + loginUrl, e);
         }
-        return new WSClient(urlPath);
+        return new WSClient(urlPath, transport, params, function);
+    }
+    public static WSClient getSlaveInstance(ConnectionParam params, WSFunction function, Transport transport) throws SQLException {
+        if (StringUtils.isEmpty(params.getSlaveClusterHost()) || StringUtils.isEmpty(params.getSlaveClusterHost())){
+            return null;
+        }
+
+        if (Strings.isNullOrEmpty(function.getFunction())) {
+            throw new SQLException("websocket url error");
+        }
+        String protocol = "ws";
+        if (params.isUseSsl()) {
+            protocol = "wss";
+        }
+        String port = ":" + params.getSlaveClusterPort();
+
+        String wsFunction = "/ws";
+
+        if (!function.equals(WSFunction.WS)){
+            throw new SQLException("slave cluster is not supported!");
+        }
+
+        String loginUrl = protocol + "://" + params.getSlaveClusterHost() + port + wsFunction;
+
+        URI urlPath;
+        try {
+            urlPath = new URI(loginUrl);
+        } catch (URISyntaxException e) {
+            throw new SQLException("Slave cluster websocket url parse error: " + loginUrl, e);
+        }
+        return new WSClient(urlPath, transport, params, function);
     }
 }

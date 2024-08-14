@@ -1,9 +1,12 @@
 package com.taosdata.jdbc.rs;
 
+import com.taosdata.jdbc.AbstractDatabaseMetaData;
 import com.taosdata.jdbc.TSDBDriver;
 import com.taosdata.jdbc.utils.SpecifyAddress;
-import com.taosdata.jdbc.utils.StringUtils;
-import org.junit.*;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 import java.sql.*;
 import java.util.Properties;
@@ -150,7 +153,7 @@ public class RestfulDatabaseMetaDataTest {
 
     @Test
     public void getIdentifierQuoteString() throws SQLException {
-        Assert.assertEquals(" ", metaData.getIdentifierQuoteString());
+        Assert.assertEquals("`", metaData.getIdentifierQuoteString());
     }
 
     @Test
@@ -160,22 +163,22 @@ public class RestfulDatabaseMetaDataTest {
 
     @Test
     public void getNumericFunctions() throws SQLException {
-        Assert.assertEquals(null, metaData.getNumericFunctions());
+        Assert.assertEquals(AbstractDatabaseMetaData.NUMERIC_FUNCTIONS, metaData.getNumericFunctions());
     }
 
     @Test
     public void getStringFunctions() throws SQLException {
-        Assert.assertEquals(null, metaData.getStringFunctions());
+        Assert.assertEquals(AbstractDatabaseMetaData.STRING_FUNCTIONS, metaData.getStringFunctions());
     }
 
     @Test
     public void getSystemFunctions() throws SQLException {
-        Assert.assertEquals(null, metaData.getSystemFunctions());
+        Assert.assertEquals(AbstractDatabaseMetaData.SYSTEM_FUNCTIONS, metaData.getSystemFunctions());
     }
 
     @Test
     public void getTimeDateFunctions() throws SQLException {
-        Assert.assertEquals(null, metaData.getTimeDateFunctions());
+        Assert.assertEquals(AbstractDatabaseMetaData.TIME_DATE_FUNCTIONS, metaData.getTimeDateFunctions());
     }
 
     @Test
@@ -695,7 +698,7 @@ public class RestfulDatabaseMetaDataTest {
     @Test
     public void getColumns() throws SQLException {
         // when
-        ResultSet columns = metaData.getColumns(dbName, "", "dn", "");
+        ResultSet columns = metaData.getColumns(dbName, "", "dn", null);
         // then
         ResultSetMetaData meta = columns.getMetaData();
         columns.next();

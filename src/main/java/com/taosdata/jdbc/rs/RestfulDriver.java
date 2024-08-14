@@ -5,11 +5,9 @@ import com.alibaba.fastjson.JSONObject;
 import com.taosdata.jdbc.*;
 import com.taosdata.jdbc.enums.WSFunction;
 import com.taosdata.jdbc.utils.HttpClientPoolUtil;
-import com.taosdata.jdbc.ws.FutureResponse;
-import com.taosdata.jdbc.ws.InFlightRequest;
-import com.taosdata.jdbc.ws.Transport;
-import com.taosdata.jdbc.ws.WSConnection;
+import com.taosdata.jdbc.ws.*;
 import com.taosdata.jdbc.ws.entity.*;
+import org.slf4j.LoggerFactory;
 
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
@@ -19,6 +17,7 @@ import java.util.Properties;
 import java.util.logging.Logger;
 
 public class RestfulDriver extends AbstractDriver {
+    private final org.slf4j.Logger log = LoggerFactory.getLogger(RestfulDriver.class);
 
     public static final String URL_PREFIX = "jdbc:TAOS-RS://";
 
@@ -104,6 +103,11 @@ public class RestfulDriver extends AbstractDriver {
     }
 
     private Connection getWSConnection(String url, ConnectionParam param, Properties props) throws SQLException {
+        log.debug("getWSConnection, url = {}", url);
+        if (log.isDebugEnabled()){
+            log.debug("getWSConnection, ConnectionParam = {}", JSON.toJSONString(param));
+        }
+
         InFlightRequest inFlightRequest = new InFlightRequest(param.getRequestTimeout(), param.getMaxRequest());
         Transport transport = new Transport(WSFunction.WS, param, inFlightRequest);
 
@@ -118,60 +122,36 @@ public class RestfulDriver extends AbstractDriver {
         });
         transport.setBinaryMessageHandler(byteBuffer -> {
             byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
-            byteBuffer.position(8);
+            byteBuffer.position(26);
             long id = byteBuffer.getLong();
-            FutureResponse remove = inFlightRequest.remove(Action.FETCH_BLOCK.getAction(), id);
+            byteBuffer.position(8);
+            FutureResponse remove = inFlightRequest.remove(Action.FETCH_BLOCK_NEW.getAction(), id);
             if (null != remove) {
-                FetchBlockResp fetchBlockResp = new FetchBlockResp(id, byteBuffer);
+                FetchBlockNewResp fetchBlockResp = new FetchBlockNewResp(byteBuffer);
                 remove.getFuture().complete(fetchBlockResp);
             }
         });
 
-        Transport.checkConnection(transport, param.getConnectTimeout());
+        transport.checkConnection(param.getConnectTimeout());
 
         ConnectReq connectReq = new ConnectReq();
         connectReq.setReqId(1);
         connectReq.setUser(param.getUser());
         connectReq.setPassword(param.getPassword());
         connectReq.setDb(param.getDatabase());
+        // 目前仅支持bi模式，下游接口值为0，此处做转换
+        if(param.getConnectMode() == ConnectionParam.CONNECT_MODE_BI){
+            connectReq.setMode(0);
+        }
+
         ConnectResp auth = (ConnectResp) transport.send(new Request(Action.CONN.getAction(), connectReq));
 
         if (Code.SUCCESS.getCode() != auth.getCode()) {
             transport.close();
-            throw new SQLException("0x" + Integer.toHexString(auth.getCode()) + ":" + "auth failure:" + auth.getMessage());
+            throw new SQLException("(0x" + Integer.toHexString(auth.getCode()) + "):" + "auth failure:" + auth.getMessage());
         }
 
         TaosGlobalConfig.setCharset(props.getProperty(TSDBDriver.PROPERTY_KEY_CHARSET));
         return new WSConnection(url, props, transport, param);
-    }
-
-    static class ConnectReq extends Payload {
-        private String user;
-        private String password;
-        private String db;
-
-        public String getUser() {
-            return user;
-        }
-
-        public void setUser(String user) {
-            this.user = user;
-        }
-
-        public String getPassword() {
-            return password;
-        }
-
-        public void setPassword(String password) {
-            this.password = password;
-        }
-
-        public String getDb() {
-            return db;
-        }
-
-        public void setDb(String db) {
-            this.db = db;
-        }
     }
 }

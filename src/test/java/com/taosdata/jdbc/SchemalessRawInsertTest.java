@@ -57,7 +57,7 @@ public class SchemalessRawInsertTest {
      *
      * @throws SQLException execute error
      */
-//    @Test
+    @Test
     @Description("telnet insert")
     public void telnetInsert() throws SQLException {
         // given
@@ -77,7 +77,7 @@ public class SchemalessRawInsertTest {
 
         // then
         Statement statement = conn.createStatement();
-        ResultSet rs = statement.executeQuery("show tables");
+        ResultSet rs = statement.executeQuery("show stables");
         Assert.assertNotNull(rs);
         ResultSetMetaData metaData = rs.getMetaData();
         Assert.assertTrue(metaData.getColumnCount() > 0);
@@ -85,7 +85,7 @@ public class SchemalessRawInsertTest {
         while (rs.next()) {
             rowCnt++;
         }
-        Assert.assertEquals(1, rowCnt);
+        Assert.assertEquals(2, rowCnt);
         rs.close();
         statement.close();
     }
@@ -95,7 +95,7 @@ public class SchemalessRawInsertTest {
      *
      * @throws SQLException execute error
      */
-//    @Test
+    @Test
     @Description("json insert")
     public void jsonInsert() throws SQLException {
         // given
@@ -122,7 +122,7 @@ public class SchemalessRawInsertTest {
             rowCnt++;
         }
 
-        Assert.assertEquals(((JSONArray) JSONObject.parse(json)).size(), rowCnt);
+        Assert.assertEquals(2, rowCnt);
         rs.close();
         statement.close();
     }
